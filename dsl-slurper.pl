@@ -5,9 +5,7 @@
 #############################################################################
 use strict;
 use English;
-use File::stat 'stat';
 use Fcntl ':mode';
-
 use ElectricCommander;
 $| = 1;
 
@@ -19,7 +17,7 @@ my $osIsWindows = $^O =~ /MSWin/;
 # Global variables
 #
 #############################################################################
-my $DEBUG=0;
+my $DEBUG=1;
 my $server="ec601";
 my $user="admin";
 my $password="changeme";
@@ -35,7 +33,7 @@ my $ec = new ElectricCommander({server=>$server, format => "json"});
 # Args:
 #     None
 #############################################################################
-sub login(){
+sub login {
   $ec->login($user, $password);
 }
 
@@ -46,32 +44,31 @@ sub login(){
 #     directory name
 #     level
 #############################################################################
-sub processDirectory ($$) {
-  my ($dir, $level)=$@;
+sub processDirectory {
+  my ($dir, $level)=@_;
 
-  opendir(my $dh, $dir) || {
-    printf("Cannot open $dir: $!");
-    return 1;
-  }
+  printf("%s+ %s\n", "  " x $level, $dir);
+  opendir(my $dh, $dir) or die("Cannot open $dir: $!");
+  my @content=readdir $dh;
 
-  while (my $filename=readdir ($dh)) {
+  foreach my $filename (@content) {
     next if $filename =~ /^\./;   # skip ., .. and hidden files
     # get file information
     my ($dev, $ino, $mode, $nlink, $uid, $gid, $rdev, $size,
-    $atime, $mtime, $ctime, $blksize, $blocks) = stat($filename);
-
+    $atime, $mtime, $ctime, $blksize, $blocks) = stat("$dir/$filename");
     if (S_ISDIR($mode)) {
-      printf("%s+ %s\n", " "x $level, $filename);
       processDirectory("$dir/$filename", $level+1);
     }
     next if ($mtime <= $timestamp);
+
     # invoke DSL only on .groovy files
     if ($filename =~ /.groovy$/) {
-      printf("%s%s\n", " "x $level, $filename);
+      printf("  %s%s\n", "  "x $level, $filename);
 
       $ec->evalDsl({dslFile=>"$dir/$filename"})
     }
   }
+  closedir $dh;
 }
 
 
@@ -83,7 +80,8 @@ sub processDirectory ($$) {
 #############################################################################
 login();
 while(1) {
-  processDirectory("$dslDirectory");
-  $timestamp=localtime();
+  processDirectory($dslDirectory);
+  $timestamp=time();
+  printf("\n\n");
   sleep(5);
 }
