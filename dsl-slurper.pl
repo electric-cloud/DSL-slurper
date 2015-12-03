@@ -131,10 +131,12 @@ sub processDirectory {
     if ($filename =~ /.groovy$/) {
       printf("  %s%s\n", "  "x $level, $filename);
 
+      system("echo 'flow.ec601.DSL.eval:1|c' |nc -w 1 -u statsd 8125");
       my ($ok, $json, $errMsg, $errCode)=invokeCommander(
         "SuppressLog IgnoreError",'evalDsl', {dslFile=>"$dir/$filename"});
       if (!$ok) {
         printf("%s\n", colored($errMsg, "red"));
+        system("echo 'flow.ec601.DSL.error:1|c' |nc -w 1 -u statsd 8125");
       }
     }
   }
@@ -194,5 +196,5 @@ while(1) {
   print $fh $timestamp;
   close($fh);
   printf("\n\n");
-  sleep(5);
+  sleep(1);
 }

@@ -12,7 +12,7 @@ In the dsl-slurper, set your server name, DSL top directory, login and password,
 or you can use some options to overwrite the default value. See the ---help
 option for details.
 
-Run it with ec-perl dsl-slurper. It will run in a forever loop and simply
+Run it with "ec-perl dsl-slurper.pl". It will run in a forever loop and simply
 evaluate the files that have been modified since the previous loop.
 
 
