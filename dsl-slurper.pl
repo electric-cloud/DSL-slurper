@@ -178,9 +178,16 @@ GetOptions(
   'help' => \&usage) || usage();
 
 login();
+if (-f "$dslDirectory/.timestamp") {
+  $timestamp=`cat "$dslDirectory/.timestamp"`;
+}
 while(1) {
   processDirectory($dslDirectory);
   $timestamp=time();
+  open(my $fh, "> $dslDirectory/.timestamp")
+    || print("Warning: cannot save timestamp. $!\n");
+  print $fh $timestamp;
+  close($fh);
   printf("\n\n");
   sleep(5);
 }
