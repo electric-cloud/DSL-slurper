@@ -16,7 +16,7 @@ use Fcntl ':mode';
 use ElectricCommander;
 use Data::Dumper;
 use Getopt::Long 'GetOptions';
-
+use Term::ANSIColor;
 $| = 1;             # Force flush
 
 # Check for the OS Type
@@ -113,7 +113,7 @@ sub login {
 sub processDirectory {
   my ($dir, $level)=@_;
 
-  printf("%s+ %s\n", "  " x $level, $dir);
+  printf ("%s%s %s\n", "  " x $level, colored("+",'green'), $dir);
   opendir(my $dh, $dir) or die("Cannot open $dir: $!");
   my @content=readdir $dh;
 
@@ -134,7 +134,7 @@ sub processDirectory {
       my ($ok, $json, $errMsg, $errCode)=invokeCommander(
         "SuppressLog IgnoreError",'evalDsl', {dslFile=>"$dir/$filename"});
       if (!$ok) {
-        printf($errMsg);
+        printf("%s\n", colored($errMsg, "red"));
       }
     }
   }
