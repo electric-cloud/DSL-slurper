@@ -2,12 +2,20 @@
 #
 # Copyright 2015 Electric-Cloud Inc.
 #
+# Author: L. Rochette (lrochette@electric-cloud.com)
+#
+# Changelog
+#
+# Date          Who         Comment
+# ---------------------------------------------------------------------------
+# Dec 03, 2015  lrochette   Initial version
 #############################################################################
 use strict;
 use English;
 use Fcntl ':mode';
 use ElectricCommander;
-$| = 1;
+use Data::Dumper;
+$| = 1;             # Force flush
 
 # Check for the OS Type
 my $osIsWindows = $^O =~ /MSWin/;
@@ -26,6 +34,59 @@ my $timestamp="1";      # a long time ago
 
 # Create a single instance of the Perl access to ElectricCommander
 my $ec = new ElectricCommander({server=>$server, format => "json"});
+
+#############################################################################
+# invokeCommander
+#    Invoke any API call
+# Args:
+#   optionFlags: SuppressLog, SuppressResult and/or IgnoreError as a string
+#   function:    API call to make
+#   parameters: in the same form than a normal API call
+#
+# Return:
+#   success: 1 for success, 0 for error
+#   result:  the JSON block returned by the API
+#   errMsg: full error message
+#   errCode: error code
+#############################################################################
+sub invokeCommander {
+
+    my $optionFlags = shift;
+    my $commanderFunction = shift;
+    my $result;
+    my $success = 1;
+    my $errMsg;
+    my $errCode;
+
+    my $bSuppressLog = $optionFlags =~ /SuppressLog/i;
+    my $bSuppressResult = $bSuppressLog || $optionFlags =~ /SuppressResult/i;
+    my $bIgnoreError = $optionFlags =~ /IgnoreError/i;
+
+    # Run the command
+    # print "Request to Commander: $commanderFunction\n" unless ($bSuppressLog);
+
+    $ec->abortOnError(0) if $bIgnoreError;
+    $result = $ec->$commanderFunction(@_);
+    $ec->abortOnError(1) if $bIgnoreError;
+
+    # Check for error return
+    if (defined ($result->{responses}->[0]->{error})) {
+        $errCode=$result->{responses}->[0]->{error}->{code};
+        $errMsg=$result->{responses}->[0]->{error}->{message};
+    }
+
+    if ($errMsg ne "") {
+        $success = 0;
+    }
+    if ($result) {
+        print "Return data from Commander:\n" .
+               Dumper($result) . "\n"
+            unless $bSuppressResult;
+    }
+
+    # Return the result
+    return ($success, $result, $errMsg, $errCode);
+}
 
 #############################################################################
 # login
@@ -65,7 +126,11 @@ sub processDirectory {
     if ($filename =~ /.groovy$/) {
       printf("  %s%s\n", "  "x $level, $filename);
 
-      $ec->evalDsl({dslFile=>"$dir/$filename"})
+      my ($ok, $json, $errMsg, $errCode)=invokeCommander(
+        "SuppressLog IgnoreError",'evalDsl', {dslFile=>"$dir/$filename"});
+      if (!$ok) {
+        printf($errMsg);
+      }
     }
   }
   closedir $dh;
