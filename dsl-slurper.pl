@@ -15,6 +15,8 @@ use English;
 use Fcntl ':mode';
 use ElectricCommander;
 use Data::Dumper;
+use Getopt::Long 'GetOptions';
+
 $| = 1;             # Force flush
 
 # Check for the OS Type
@@ -25,6 +27,8 @@ my $osIsWindows = $^O =~ /MSWin/;
 # Global variables
 #
 #############################################################################
+my $version = "0.1";
+
 my $DEBUG=1;
 my $server="ec601";
 my $user="admin";
@@ -137,12 +141,42 @@ sub processDirectory {
 }
 
 
+#############################################################################
+# Usage
+#
+#############################################################################
+sub usage {
+  printf("
+Copyright 2015 Electric Cloud
+dsl-slurper $version: import DSL changes into ElectricFlow
+
+Options:
+ --server    SERVER     ElectricFlow server
+ --user      USER       username
+ --password  PASSWORD   password
+ --dslDirectory DIR     directory to monitor and parse
+");
+  exit(1);
+}
+
+
 
 #############################################################################
 #
 # Main
 #
 #############################################################################
+
+#
+# parse optionFlags
+#
+GetOptions(
+  'server=s' => \$server,
+  'user=s' =>\$user,
+  'password=s' =>\$password,
+  'dsl=s' => \$dslDirectory,
+  'help' => \&usage) || usage();
+
 login();
 while(1) {
   processDirectory($dslDirectory);
