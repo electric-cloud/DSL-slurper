@@ -35,6 +35,7 @@ my $user="admin";
 my $password="changeme";
 my $dslDirectory="DSL";
 my $timestamp="1";      # a long time ago
+my $force="0";
 
 # Create a single instance of the Perl access to ElectricCommander
 my $ec = new ElectricCommander({server=>$server, format => "json"});
@@ -155,6 +156,7 @@ Options:
  --user      USER       username
  --password  PASSWORD   password
  --dslDirectory DIR     directory to monitor and parse
+ --force                ignore timestamp and re-eval DSL
 ");
   exit(1);
 }
@@ -175,10 +177,13 @@ GetOptions(
   'user=s' =>\$user,
   'password=s' =>\$password,
   'dsl=s' => \$dslDirectory,
+  'force' => \$force,
   'help' => \&usage) || usage();
 
 login();
-if (-f "$dslDirectory/.timestamp") {
+
+# read existing timestamp if not in FORCE mode
+if ((! $force) && (-f "$dslDirectory/.timestamp")) {
   $timestamp=`cat "$dslDirectory/.timestamp"`;
 }
 while(1) {
