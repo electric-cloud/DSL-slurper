@@ -9,6 +9,8 @@
 # Date          Who         Comment
 # ---------------------------------------------------------------------------
 # Dec 03, 2015  lrochette   Initial version
+# Dec 07, 2015  lrochette   Only run processDirectory when new files are
+#                           detected
 #############################################################################
 use strict;
 use English;
@@ -16,6 +18,7 @@ use Fcntl ':mode';
 use ElectricCommander;
 use Data::Dumper;
 use Getopt::Long 'GetOptions';
+use File::Find;
 use Term::ANSIColor;
 $| = 1;             # Force flush
 
@@ -27,7 +30,7 @@ my $osIsWindows = $^O =~ /MSWin/;
 # Global variables
 #
 #############################################################################
-my $version = "0.1";
+my $version = "0.2";
 
 my $DEBUG=1;
 my $server="ec601";
@@ -37,6 +40,7 @@ my $dslDirectory="DSL";
 my $timestamp="1";      # a long time ago
 my $force="0";
 
+my @orderedList=qw(groups users projects);
 # Create a single instance of the Perl access to ElectricCommander
 my $ec = new ElectricCommander({server=>$server, format => "json"});
 
@@ -116,12 +120,17 @@ sub processDirectory {
   printf ("%s%s %s\n", "  " x $level, colored("+",'green'), $dir);
   opendir(my $dh, $dir) or die("Cannot open $dir: $!");
   my @content=readdir $dh;
+  my @directories=();
+  my @before=();
+  my @after=();
 
   foreach my $filename (@content) {
     next if $filename =~ /^\./;   # skip ., .. and hidden files
     # get file information
     my ($dev, $ino, $mode, $nlink, $uid, $gid, $rdev, $size,
     $atime, $mtime, $ctime, $blksize, $blocks) = stat("$dir/$filename");
+
+
     if (S_ISDIR($mode)) {
       processDirectory("$dir/$filename", $level+1);
     }
@@ -188,13 +197,30 @@ login();
 if ((! $force) && (-f "$dslDirectory/.timestamp")) {
   $timestamp=`cat "$dslDirectory/.timestamp"`;
 }
+
 while(1) {
-  processDirectory($dslDirectory);
-  $timestamp=time();
-  open(my $fh, "> $dslDirectory/.timestamp")
-    || print("Warning: cannot save timestamp. $!\n");
-  print $fh $timestamp;
-  close($fh);
-  printf("\n\n");
-  sleep(1);
+  my @newFiles=`find $dslDirectory -type f -name '*.groovy' -newer $dslDirectory/.timestamp`;
+  #print(@newFiles) if ($DEBUG);
+
+  if (@newFiles) {
+    # found new files
+    # save previous timestamp (so files created during process will be eval'ed next round)
+    my $newTimestamp=time();
+    processDirectory($dslDirectory);
+
+    # Write old timestamp just after the find
+    # so next roud, files modified during the process will be found
+    open(my $fh, "> $dslDirectory/.timestamp")
+      || print("Warning: cannot save timestamp. $!\n");
+    print $fh $newTimestamp;
+    # set time used for processDirectory
+    $timestamp=$newTimestamp;
+    close($fh);
+
+    printf("\n\n");
+  }
+  else {
+    # print (".") if ($DEBUG);
+  }
+  sleep(2);
 }
