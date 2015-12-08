@@ -11,6 +11,7 @@
 # Dec 03, 2015  lrochette   Initial version
 # Dec 07, 2015  lrochette   Only run processDirectory when new files are
 #                           detected
+# Dec 08, 2015  lrochette   Pass parameters to evalDsl
 #############################################################################
 use strict;
 use English;
@@ -30,17 +31,21 @@ my $osIsWindows = $^O =~ /MSWin/;
 # Global variables
 #
 #############################################################################
-my $version = "0.2";
+my $version = "0.3";
 
 my $DEBUG=1;
-my $server="ec601";
-my $user="admin";
-my $password="changeme";
-my $dslDirectory="DSL";
-my $timestamp="1";      # a long time ago
-my $force="0";
+my $server="ec601";           # Default server name
+my $user="admin";             # default user name
+my $password="changeme";      # Default password
+my $dslDirectory="DSL";       # Default directory where to pick up code
+my $parameters="";            # parameter List
+my $dslParams="";             # parameter string (JSON) for evalDsl
+my $timestamp="1";            # a long time ago (Default timestamp)
+my $force="0";                # To force all files parsing
 
+# To force some ordering in the parsing of the structure
 my @orderedList=qw(groups users projects);
+
 # Create a single instance of the Perl access to ElectricCommander
 my $ec = new ElectricCommander({server=>$server, format => "json"});
 
@@ -141,8 +146,12 @@ sub processDirectory {
       printf("  %s%s\n", "  "x $level, $filename);
 
       system("echo 'flow.ec601.DSL.eval:1|c' |nc -w 1 -u statsd 8125");
+      my %options=();
+      $options{dslFile}="$dir/$filename";
+      $options{parameters}=$dslParams if ($dslParams);
+
       my ($ok, $json, $errMsg, $errCode)=invokeCommander(
-        "SuppressLog IgnoreError",'evalDsl', {dslFile=>"$dir/$filename"});
+        "SuppressLog IgnoreError",'evalDsl', \%options);
       if (!$ok) {
         printf("%s\n", colored($errMsg, "red"));
         system("echo 'flow.ec601.DSL.error:1|c' |nc -w 1 -u statsd 8125");
@@ -150,6 +159,27 @@ sub processDirectory {
     }
   }
   closedir $dh;
+}
+
+#############################################################################
+# parseParameters
+#   parse all the parameters passed to the script and rewrite them in an
+#       evalDsl format
+# Args:
+#     None
+#############################################################################
+sub parseParameters {
+    my @pairs=split(',', $parameters);
+
+    $dslParams="{";
+    my $index=0;
+    foreach my $pair (@pairs) {
+      my ($name,$value)=split("=", $pair);
+      $dslParams .= "," if ($index);   # Add comma to separate elements
+      $dslParams .= sprintf("\"%s\":\"%s\"", $name, $value);
+      $index++;
+    }
+    $dslParams .= "}";
 }
 
 
@@ -168,11 +198,10 @@ Options:
  --password  PASSWORD   password
  --dslDirectory DIR     directory to monitor and parse
  --force                ignore timestamp and re-eval DSL
+ --parameters PARAMS    parameters to pass on evalDsl as p1=v1,p2=v2,
 ");
   exit(1);
 }
-
-
 
 #############################################################################
 #
@@ -188,6 +217,7 @@ GetOptions(
   'user=s' =>\$user,
   'password=s' =>\$password,
   'dsl=s' => \$dslDirectory,
+  'parameters=s' => \$parameters,
   'force' => \$force,
   'help' => \&usage) || usage();
 
@@ -197,6 +227,9 @@ login();
 if ((! $force) && (-f "$dslDirectory/.timestamp")) {
   $timestamp=`cat "$dslDirectory/.timestamp"`;
 }
+
+# Any parameters?
+parseParameters() if ($parameters);
 
 while(1) {
   my @newFiles=`find $dslDirectory -type f -name '*.groovy' -newer $dslDirectory/.timestamp`;
