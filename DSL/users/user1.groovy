@@ -4,5 +4,5 @@ user("user1") {
   password= "user1"
   sessionPassword= "changeme"
 }
-
+ 
 addUsersToGroup(groupName:"groupA", userNames: "user1")

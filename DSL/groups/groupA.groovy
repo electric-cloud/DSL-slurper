@@ -1,3 +1,5 @@
-group("groupA") {
-  description: "This is the sample creation of groupA"
+group() {
+  groupName = 'groupA'
+  userName = 'jdoe'
+  userName = 'user1'
 }
