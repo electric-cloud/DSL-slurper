@@ -1,0 +1,29 @@
+# -*-Perl-*-
+
+# options.ntest -
+#
+# Exercise options of DSL-slurper
+#
+# Copyright (c) 2015 Electric Cloud, Inc.
+# All rights reserved
+
+use strict;
+use Cwd;
+
+my $cwd=getcwd();
+
+#-------------------------------------------------------------------------------
+# Test help option.
+#-------------------------------------------------------------------------------
+ntest "help", {}, sub {
+    my @lines=`ec-perl $cwd/../dsl-slurper.pl --help`;
+    assertInList(" --help                 This page\n",\@lines, "Help not found");
+};
+
+#-------------------------------------------------------------------------------
+# Test unknown option.
+#-------------------------------------------------------------------------------
+ntest "unknown option", {}, sub {
+    my $line=(`ec-perl $cwd/../dsl-slurper.pl --foo 2>&1 | head -1`)[0];
+    assertEq("Unknown option: foo\n",$line, "not processed");
+};

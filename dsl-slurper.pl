@@ -21,6 +21,7 @@ use Data::Dumper;
 use Getopt::Long 'GetOptions';
 use File::Find;
 use Term::ANSIColor;
+
 $| = 1;             # Force flush
 
 # Check for the OS Type
@@ -37,7 +38,7 @@ my $DEBUG=1;
 my $server="ec601";           # Default server name
 my $user="admin";             # default user name
 my $password="changeme";      # Default password
-my $dslDirectory="DSL";       # Default directory where to pick up code
+my $dslDirectory=".";         # Default directory where to pick up code
 my $parameters="";            # parameter List
 my $dslParams="";             # parameter string (JSON) for evalDsl
 my $timestamp="1";            # a long time ago (Default timestamp)
@@ -123,6 +124,7 @@ sub processDirectory {
   my ($dir, $level)=@_;
 
   printf ("%s%s %s\n", "  " x $level, colored("+",'green'), $dir);
+#  printf ("%s %s\n", "  " x $level, colored("+",'blue') x $level, $dir);
   opendir(my $dh, $dir) or die("Cannot open $dir: $!");
   my @content=readdir $dh;
   my @directories=();
@@ -156,6 +158,12 @@ sub processDirectory {
         printf("%s\n", colored($errMsg, "red"));
         system("echo 'flow.ec601.DSL.error:1|c' |nc -w 1 -u statsd 8125");
       }
+    } elsif ($filename =~ /.groovy.pl$/) {
+      # Workaround for stuff you cannot do in DSL yet
+      printf("  %s%s\n", "  "x $level, $filename);
+
+      system("echo 'flow.ec601.DSL.perl:1|c' |nc -w 1 -u statsd 8125");
+      system("ec-perl $dir/$filename");
     }
   }
   closedir $dh;
@@ -196,9 +204,10 @@ Options:
  --server    SERVER     ElectricFlow server
  --user      USER       username
  --password  PASSWORD   password
- --dslDirectory DIR     directory to monitor and parse
+ --directory DIR        directory to monitor and parse
  --force                ignore timestamp and re-eval DSL
- --parameters PARAMS    parameters to pass on evalDsl as p1=v1,p2=v2,
+ --parameters PARAMS    parameters to pass on evalDsl as p1=v1,p2=v2,...
+ --help                 This page
 ");
   exit(1);
 }
@@ -216,15 +225,24 @@ GetOptions(
   'server=s' => \$server,
   'user=s' =>\$user,
   'password=s' =>\$password,
-  'dsl=s' => \$dslDirectory,
+  'directory=s' => \$dslDirectory,
   'parameters=s' => \$parameters,
   'force' => \$force,
   'help' => \&usage) || usage();
 
 login();
 
-# read existing timestamp if not in FORCE mode
-if ((! $force) && (-f "$dslDirectory/.timestamp")) {
+# Reset existing timestamp if  in FORCE mode
+if ($force) {
+  open(my $fh, "> $dslDirectory/.timestamp")
+    || print("Warning: cannot save timestamp. $!\n");
+  print $fh "1";
+  close($fh);
+  utime  1,1, "$dslDirectory/.timestamp"
+}
+
+# Read timestamp
+if ((-f "$dslDirectory/.timestamp")) {
   $timestamp=`cat "$dslDirectory/.timestamp"`;
 }
 
@@ -232,7 +250,7 @@ if ((! $force) && (-f "$dslDirectory/.timestamp")) {
 parseParameters() if ($parameters);
 
 while(1) {
-  my @newFiles=`find $dslDirectory -type f -name '*.groovy' -newer $dslDirectory/.timestamp`;
+  my @newFiles=`find $dslDirectory -type f -name '*.groovy*' -newer $dslDirectory/.timestamp`;
   #print(@newFiles) if ($DEBUG);
 
   if (@newFiles) {
