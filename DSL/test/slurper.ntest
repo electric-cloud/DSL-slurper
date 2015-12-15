@@ -1,0 +1,33 @@
+# -*-Perl-*-
+
+# slurper.ntest -
+#
+# Check to see if the slurper project has been created by the DSL
+#
+# Copyright (c) 2015 Electric Cloud, Inc.
+# All rights reserved
+
+use strict;
+use warnings;
+use ECTest;
+
+initCommander();
+$::N=$adminSession;
+
+#-------------------------------------------------------------------------------
+# Project slurper existence
+#-------------------------------------------------------------------------------
+ntest "Project slurper", {}, sub {
+  my $xpath = $::N->getProject("slurper");
+  assertOK($xpath, "slurper does not exist");
+};
+
+#-------------------------------------------------------------------------------
+# Check Procedure A existence
+#-------------------------------------------------------------------------------
+ntest "Procedure A", {}, sub {
+  my $xpath = $::N->getProcedure("slurper", "A");
+  assertOK($xpath, "Procedure A does not exist");
+};
+
+1;

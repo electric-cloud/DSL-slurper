@@ -1,3 +1,4 @@
+#!/usr/bin/env ec-perl
 #############################################################################
 #
 # Copyright 2015 Electric-Cloud Inc.
@@ -33,7 +34,7 @@ my $osIsWindows = $^O =~ /MSWin/;
 #
 #############################################################################
 my $version = "0.3";
-
+my $tsFile = ".dsl";          # filename where the timestamp is saved
 my $DEBUG=1;
 my $server="ec601";           # Default server name
 my $user="admin";             # default user name
@@ -43,6 +44,13 @@ my $parameters="";            # parameter List
 my $dslParams="";             # parameter string (JSON) for evalDsl
 my $timestamp="1";            # a long time ago (Default timestamp)
 my $force="0";                # To force all files parsing
+my $ntest="../ec-testing/ntest";  # Testing mode
+my $error=0;                  # was there any error in my eval loop
+#
+# color Definitions
+my $plusColor='blue';
+my $errorColor='red';
+my $okColor='green';
 
 # To force some ordering in the parsing of the structure
 my @orderedList=qw(groups users projects);
@@ -123,7 +131,8 @@ sub login {
 sub processDirectory {
   my ($dir, $level)=@_;
 
-  printf ("%s%s %s\n", "  " x $level, colored("+",'green'), $dir);
+  my $indent=" +" x $level;
+  printf ("%s %s\n", colored($indent,$plusColor), $dir);
 #  printf ("%s %s\n", "  " x $level, colored("+",'blue') x $level, $dir);
   opendir(my $dh, $dir) or die("Cannot open $dir: $!");
   my @content=readdir $dh;
@@ -145,24 +154,23 @@ sub processDirectory {
 
     # invoke DSL only on .groovy files
     if ($filename =~ /.groovy$/) {
-      printf("  %s%s\n", "  "x $level, $filename);
+      printf("  %s %s", "  "x $level, $filename);
 
-      system("echo 'flow.ec601.DSL.eval:1|c' |nc -w 1 -u statsd 8125");
       my %options=();
       $options{dslFile}="$dir/$filename";
       $options{parameters}=$dslParams if ($dslParams);
 
       my ($ok, $json, $errMsg, $errCode)=invokeCommander(
         "SuppressLog IgnoreError",'evalDsl', \%options);
-      if (!$ok) {
-        printf("%s\n", colored($errMsg, "red"));
-        system("echo 'flow.ec601.DSL.error:1|c' |nc -w 1 -u statsd 8125");
+      if ($ok) {
+        printf (" (%s)\n", colored("OK", $okColor));
+      } else {
+        $error=1;
+        printf("\n%s\n", colored($errMsg, $errorColor));
       }
     } elsif ($filename =~ /.groovy.pl$/) {
       # Workaround for stuff you cannot do in DSL yet
-      printf("  %s%s\n", "  "x $level, $filename);
-
-      system("echo 'flow.ec601.DSL.perl:1|c' |nc -w 1 -u statsd 8125");
+      printf("  %s %s\n", "  "x $level, $filename);
       system("ec-perl $dir/$filename");
     }
   }
@@ -205,9 +213,11 @@ Options:
  --user      USER       username
  --password  PASSWORD   password
  --directory DIR        directory to monitor and parse
+ --test      PATH       path to ntest
  --force                ignore timestamp and re-eval DSL
  --parameters PARAMS    parameters to pass on evalDsl as p1=v1,p2=v2,...
  --help                 This page
+
 ");
   exit(1);
 }
@@ -222,52 +232,63 @@ Options:
 # parse optionFlags
 #
 GetOptions(
-  'server=s' => \$server,
-  'user=s' =>\$user,
-  'password=s' =>\$password,
-  'directory=s' => \$dslDirectory,
+  'server=s'     => \$server,
+  'user=s'       => \$user,
+  'password=s'   => \$password,
+  'directory=s'  => \$dslDirectory,
   'parameters=s' => \$parameters,
-  'force' => \$force,
-  'help' => \&usage) || usage();
+  'test=s'       => \$ntest,
+  'force'        => \$force,
+  'help'         => \&usage) || usage();
 
 login();
 
 # Reset existing timestamp if  in FORCE mode
-if ($force) {
-  open(my $fh, "> $dslDirectory/.timestamp")
-    || print("Warning: cannot save timestamp. $!\n");
+if ($force || ! -f "$dslDirectory/$tsFile") {
+  open(my $fh, "> $dslDirectory/$tsFile")
+    || print("Warning: cannot save timestamp in $dslDirectory/$tsFile!\n$!\n");
   print $fh "1";
   close($fh);
-  utime  1,1, "$dslDirectory/.timestamp"
+  utime  1,1, "$dslDirectory/$tsFile"
 }
 
 # Read timestamp
-if ((-f "$dslDirectory/.timestamp")) {
-  $timestamp=`cat "$dslDirectory/.timestamp"`;
-}
+$timestamp=`cat "$dslDirectory/$tsFile"`;
 
 # Any parameters?
 parseParameters() if ($parameters);
 
+
+printf("Slurping DSL and Perl from $dslDirectory:\n");
+
 while(1) {
-  my @newFiles=`find $dslDirectory -type f -name '*.groovy*' -newer $dslDirectory/.timestamp`;
+  my @newFiles=`find $dslDirectory -type f -newer $dslDirectory/$tsFile`;
   #print(@newFiles) if ($DEBUG);
 
   if (@newFiles) {
+    $error=0;
     # found new files
     # save previous timestamp (so files created during process will be eval'ed next round)
     my $newTimestamp=time();
-    processDirectory($dslDirectory);
+    processDirectory($dslDirectory, 0);
 
     # Write old timestamp just after the find
     # so next roud, files modified during the process will be found
-    open(my $fh, "> $dslDirectory/.timestamp")
-      || print("Warning: cannot save timestamp. $!\n");
+    open(my $fh, "> $dslDirectory/$tsFile")
+      || print("Warning: cannot save the timestamp in $dslDirectory/$tsFile!\n$!\n");
     print $fh $newTimestamp;
     # set time used for processDirectory
     $timestamp=$newTimestamp;
     close($fh);
 
+    if (-d "$dslDirectory/test" && -f $ntest) {
+      if ($error) {
+        printf("Skipping automatic testing due to an error\n");
+      } else {
+        printf("Automatic testing: $ntest\n");
+        system("$ntest --target=$server $dslDirectory/test");
+      }
+    }
     printf("\n\n");
   }
   else {

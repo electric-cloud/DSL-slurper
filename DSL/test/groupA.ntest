@@ -1,0 +1,34 @@
+# -*-Perl-*-
+
+# groupA.ntest -
+#
+# Check to see if group A has been created by the DSL
+#
+# Copyright (c) 2015 Electric Cloud, Inc.
+# All rights reserved
+
+use strict;
+use warnings;
+use ECTest;
+
+initCommander();
+$::N=$adminSession;
+
+#-------------------------------------------------------------------------------
+# groupA existence
+#-------------------------------------------------------------------------------
+ntest "groupA", {}, sub {
+  my $xpath = $::N->getGroup("GroupA");
+  assertOK($xpath, "GroupA does not exist");
+};
+
+#-------------------------------------------------------------------------------
+# Check groupA description
+#-------------------------------------------------------------------------------
+ntest "groupA description", {}, sub {
+  my $prop = $::N->getProperty("description", {groupName =>"GroupA"})
+                ->findvalue("//value");
+  assertEq("This is group A", $prop, "GroupA description is incorrect");
+};
+
+1;
