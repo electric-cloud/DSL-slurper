@@ -36,7 +36,7 @@ my $osIsWindows = $^O =~ /MSWin/;
 my $version = "0.3";
 my $tsFile = ".dsl";          # filename where the timestamp is saved
 my $DEBUG=1;
-my $server="ec601";           # Default server name
+my $server="localhost";           # Default server name
 my $user="admin";             # default user name
 my $password="changeme";      # Default password
 my $dslDirectory=".";         # Default directory where to pick up code
@@ -46,6 +46,8 @@ my $timestamp="1";            # a long time ago (Default timestamp)
 my $force="0";                # To force all files parsing
 my $ntest="../ec-testing/ntest";  # Testing mode
 my $error=0;                  # was there any error in my eval loop
+my $ec;
+
 #
 # color Definitions
 my $plusColor='blue';
@@ -55,8 +57,6 @@ my $okColor='green';
 # To force some ordering in the parsing of the structure
 my @orderedList=qw(groups users projects);
 
-# Create a single instance of the Perl access to ElectricCommander
-my $ec = new ElectricCommander({server=>$server, format => "json"});
 
 #############################################################################
 # invokeCommander
@@ -241,6 +241,8 @@ GetOptions(
   'force'        => \$force,
   'help'         => \&usage) || usage();
 
+# Create a single instance of the Perl access to ElectricCommander
+$ec = new ElectricCommander({server=>$server, format => "json"});
 login();
 
 # Reset existing timestamp if  in FORCE mode
