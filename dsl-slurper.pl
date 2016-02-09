@@ -264,7 +264,7 @@ parseParameters() if ($parameters);
 printf("Slurping DSL and Perl from $dslDirectory:\n");
 
 while(1) {
-  my @newFiles=`find $dslDirectory -type f -newer $dslDirectory/$tsFile`;
+  my @newFiles=`find "$dslDirectory" -type f -newer "$dslDirectory/$tsFile"`;
   #print(@newFiles) if ($DEBUG);
 
   if (@newFiles) {

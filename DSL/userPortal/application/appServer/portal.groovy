@@ -2,7 +2,7 @@ project("Default") {
   application("userPortal") {
     applicationTier("AppServer") {
       component("Portal") {
-        description = "Portal component"
+        description = "Portal component for the DSL demo."
         pluginKey = "EC-Artifact"
 
         ec_content_details.with {
